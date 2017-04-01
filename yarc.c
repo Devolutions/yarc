@@ -10,6 +10,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifndef _WIN32
+#define _strdup strdup
+#endif
+
 typedef struct
 {
 	FILE* fp;
@@ -33,6 +37,8 @@ static char* yarc_prefix = "yarc";
 static char* yarc_bundle = "default";
 static char* yarc_output = "resources.c";
 static char* yarc_version = "1.0.0";
+static bool yarc_static = false;
+static bool yarc_verbose = false;
 
 const char* yarc_get_base_name(const char* filename)
 {
@@ -61,12 +67,12 @@ const char* yarc_get_base_name(const char* filename)
 int yarc_file_construct_names(yarc_file_t* yf)
 {
 	char* p;
-	int length;
+	size_t length;
 	size_t size;
 	const char* basename = yarc_get_base_name(yf->filename);
 
 	length = strlen(basename);
-	yf->basename = strdup(basename);
+	yf->basename = _strdup(basename);
 
 	if (!yf->basename)
 		return -1;
@@ -101,8 +107,10 @@ int yarc_file_write(yarc_file_t* out, yarc_file_t* in)
 	size_t size = in->size + yarc_padding;
 
 	fprintf(out->fp, "/* %s */\n", in->basename);
-	fprintf(out->fp, "static const unsigned int %s_size = %d;\n", identifier, (int) in->size);
-	fprintf(out->fp, "static const unsigned char %s_data[%d] = {\n", identifier, (int) size);
+	fprintf(out->fp, "%sconst unsigned int %s_size = %d;\n",
+		yarc_static ? "static " : "", identifier, (int) in->size);
+	fprintf(out->fp, "%sconst unsigned char %s_data[%d+%d] = {\n",
+		yarc_static ? "static " : "", identifier, (int) in->size, yarc_padding);
 
 	for (i = 0; i < size; i++)
 	{
@@ -202,8 +210,10 @@ void yarc_print_help()
 		"    -w <width>        hex dump width (default is 16)\n"
 		"    -a <padding>      append zero padding (default is 2)\n"
 		"    -u                use uppercase hex (default is lowercase)\n"
+		"    -s                use static keyword on resources\n"
 		"    -h                print help\n"
 		"    -v                print version (%s)\n"
+		"    -V                verbose mode\n"
 		"\n", yarc_version
 	);
 }
@@ -212,7 +222,6 @@ void yarc_print_version()
 {
 	printf("yarc version %s\n", yarc_version);
 }
-
 
 int main(int argc, char** argv)
 {
@@ -286,6 +295,10 @@ int main(int argc, char** argv)
 					yarc_upper = true;
 					break;
 
+				case 's':
+					yarc_static = true;
+					break;
+
 				case 'h':
 					yarc_print_help();
 					break;
@@ -293,18 +306,25 @@ int main(int argc, char** argv)
 				case 'v':
 					yarc_print_version();
 					break;
+
+				case 'V':
+					yarc_verbose = true;
+					break;
 			}
 
 			continue;
 		}
 
 		file = &files[nfiles++];
-		file->filename = strdup(argv[index]);
+		file->filename = _strdup(argv[index]);
 		yarc_file_construct_names(file);
 	}
 
+	if (yarc_verbose)
+		printf("generating %s\n", yarc_output);
+
 	out = &files[nfiles];
-	out->filename = strdup(yarc_output);
+	out->filename = _strdup(yarc_output);
 	yarc_file_open(out, true);
 
 	fprintf(out->fp, "\n");
@@ -329,11 +349,11 @@ int main(int argc, char** argv)
 	for (index = 0; index < nfiles; index++)
 	{
 		file = &files[index];
-		fprintf(out->fp, "  { \"%s\", %s_size, (unsigned char*) %s_data },\n",
-			file->basename, file->identifier, file->identifier);
+		fprintf(out->fp, "  { \"%s\", %d, (unsigned char*) %s_data },\n",
+			file->basename, (int) file->size, file->identifier);
 	}
 
-	fprintf(out->fp, "  { \"\", 0, NULL }\n};\n\n");
+	fprintf(out->fp, "  { \"\", 0, 0 }\n};\n");
 
 	yarc_file_close(out);
 	free(files);
