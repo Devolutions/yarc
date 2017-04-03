@@ -77,13 +77,13 @@ int yarc_file_construct_names(yarc_file_t* yf)
 	if (!yf->basename)
 		return -1;
 
-	size = length + strlen(yarc_prefix) + 2;
+	size = length + strlen(yarc_bundle) + strlen(yarc_prefix) + 3;
 	yf->identifier = malloc(size);
 
 	if (!yf->identifier)
 		return -1;
 
-	snprintf(yf->identifier, size, "%s_%s", yarc_prefix, yf->basename);
+	snprintf(yf->identifier, size, "%s_%s_%s", yarc_prefix, yarc_bundle, yf->basename);
 
 	p = yf->identifier;
 
@@ -109,7 +109,7 @@ int yarc_file_write(yarc_file_t* out, yarc_file_t* in)
 	fprintf(out->fp, "/* %s */\n", in->basename);
 	fprintf(out->fp, "%sconst unsigned int %s_size = %d;\n",
 		yarc_static ? "static " : "", identifier, (int) in->size);
-	fprintf(out->fp, "%sconst unsigned char %s_data[%d+%d] = {\n",
+	fprintf(out->fp, "%sconst unsigned char %s[%d+%d] = {\n",
 		yarc_static ? "static " : "", identifier, (int) in->size, yarc_padding);
 
 	for (i = 0; i < size; i++)
@@ -126,7 +126,9 @@ int yarc_file_write(yarc_file_t* out, yarc_file_t* in)
 			fprintf(out->fp, "\n");
 	}
 
-	fprintf(out->fp, "};\n\n");
+	fprintf(out->fp, "};\n");
+	fprintf(out->fp, "%sconst unsigned char* %s_data = (unsigned char*) %s;\n\n",
+		yarc_static ? "static " : "", identifier, identifier);
 
 	return 1;
 }
@@ -225,6 +227,7 @@ void yarc_print_version()
 
 int main(int argc, char** argv)
 {
+	int status;
 	int index;
 	char* arg;
 	int nfiles = 0;
@@ -321,39 +324,66 @@ int main(int argc, char** argv)
 	}
 
 	if (yarc_verbose)
-		printf("generating %s\n", yarc_output);
+	{
+		printf("generating %s from ", yarc_output);
+
+		for (index = 0; index < nfiles; index++)
+		{
+			file = &files[index];
+			printf("%s%s", file->basename, index != (nfiles - 1) ? ", " : "\n");
+		}
+	}
 
 	out = &files[nfiles];
 	out->filename = _strdup(yarc_output);
-	yarc_file_open(out, true);
+	status = yarc_file_open(out, true);
+
+	if (status < 1)
+	{
+		fprintf(stderr, "could not open file \"%s\"\n", out->filename);
+		return 1;
+	}
 
 	fprintf(out->fp, "\n");
 
 	for (index = 0; index < nfiles; index++)
 	{
 		file = &files[index];
-		yarc_file_open(file, false);
-		yarc_file_write(out, file);
+
+		status = yarc_file_open(file, false);
+
+		if (status < 1)
+		{
+			fprintf(stderr, "could not open file \"%s\"\n", file->filename);
+			return 1;
+		}
+
+		status = yarc_file_write(out, file);
+
+		if (status < 1)
+			return 1;
 	}
 
 	fprintf(out->fp,
 		"typedef struct {\n"
 		"  const char* name;\n"
-		"  unsigned int size;\n"
-		"  unsigned char* data;\n"
+		"  const unsigned int* size;\n"
+		"  const unsigned char** data;\n"
 		"} %s_resource_t;\n\n", yarc_prefix);
 
-	fprintf(out->fp, "const %s_resource_t %s_bundle_%s[] = {\n",
+	fprintf(out->fp, "%sconst %s_resource_t %s_%s_resources[] = {\n",
+		yarc_static ? "static " : "",
 		yarc_prefix, yarc_prefix, yarc_bundle);
 
 	for (index = 0; index < nfiles; index++)
 	{
 		file = &files[index];
-		fprintf(out->fp, "  { \"%s\", %d, (unsigned char*) %s_data },\n",
-			file->basename, (int) file->size, file->identifier);
+		fprintf(out->fp, "  { \"%s\", &%s_size, &%s_data },\n",
+			file->basename, file->identifier, file->identifier);
 	}
 
 	fprintf(out->fp, "  { \"\", 0, 0 }\n};\n");
+	fprintf(out->fp, "\n");
 
 	yarc_file_close(out);
 	free(files);

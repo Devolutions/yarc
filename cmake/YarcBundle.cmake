@@ -1,0 +1,22 @@
+
+function(yarc_bundle)
+	cmake_parse_arguments(YARC_BUNDLE "VERBOSE" "NAME;TARGET;OUTPUT" "RESOURCES" ${ARGN})
+	if(NOT YARC_BUNDLE_TARGET)
+		set(YARC_BUNDLE_TARGET "yarc-${YARC_BUNDLE_NAME}-bundle")
+	endif()
+	if(YARC_BUNDLE_VERBOSE)
+		list(APPEND YARC_OPTIONS "-V")
+	endif()
+	if(YARC_BUNDLE_NAME)
+		list(APPEND YARC_OPTIONS "-b;${YARC_BUNDLE_NAME}")
+	endif()
+	if(YARC_BUNDLE_OUTPUT)
+		list(APPEND YARC_OPTIONS "-o;${YARC_BUNDLE_OUTPUT}")
+	endif()
+	add_custom_command(COMMAND yarc
+		ARGS ${YARC_OPTIONS} ${YARC_BUNDLE_RESOURCES}
+		OUTPUT ${YARC_BUNDLE_OUTPUT}
+		DEPENDS yarc ${YARC_BUNDLE_RESOURCES})
+	add_custom_target(${YARC_BUNDLE_TARGET} ALL DEPENDS yarc ${YARC_BUNDLE_RESOURCES})
+endfunction()
+
