@@ -11,11 +11,14 @@ if(YARC_LZ4)
 	add_definitions(-DYARC_LZ4)
 endif()
 
+include_directories(include)
+add_subdirectory(libyarc)
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
 add_executable(yarc yarc.c)
 
 if(YARC_LZ4)
-	target_link_libraries(yarc lz4-hc)
+	target_link_libraries(yarc yarc-lz4-hc)
 endif()
 
 include(cmake/YarcBundle.cmake)
