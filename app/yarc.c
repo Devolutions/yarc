@@ -12,6 +12,8 @@
 
 #ifndef _WIN32
 #define _strdup strdup
+#else
+#pragma warning(disable: 4996)
 #endif
 
 #ifdef YARC_LZ4
@@ -125,7 +127,7 @@ int yarc_file_write(yarc_file_t* out, yarc_file_t* in)
 	fprintf(out->fp, "%sconst unsigned char %s[%d+%d] = {\n",
 		yarc_static ? "static " : "", identifier, (int) in->size, yarc_padding);
 
-	for (i = 0; i < size; i++)
+	for (i = 0; i < (int) size; i++)
 	{
 		if ((i % width) == 0)
 			fprintf(out->fp, "  ");
@@ -155,7 +157,7 @@ int yarc_zdata_write(yarc_file_t* out, const uint8_t* zdata, size_t zsize, size_
 	fprintf(out->fp, "%sconst unsigned char %s_%s_zdata[%d] = {\n",
 		yarc_static ? "static " : "", yarc_prefix, yarc_bundle, (int) zsize);
 
-	for (i = 0; i < zsize; i++)
+	for (i = 0; i < (int) zsize; i++)
 	{
 		if ((i % width) == 0)
 			fprintf(out->fp, "  ");

@@ -1,4 +1,6 @@
+
 *.a
+*.exe
 *.dll
 
 Makefile
@@ -6,3 +8,13 @@ CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 
+.vs/
+Win32/
+Debug/
+Release/
+*.sln
+*.VC.db
+*.opendb
+*.vcxproj
+*.vcxproj.user
+*.vcxproj.filters
