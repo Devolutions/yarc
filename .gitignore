@@ -1,7 +1,6 @@
 *.a
 *.dll
 
-yarc
 Makefile
 CMakeFiles/
 CMakeCache.txt
