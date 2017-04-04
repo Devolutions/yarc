@@ -44,7 +44,7 @@ bool yarc_bundle_open(yarc_bundle_t* bundle)
 		if (!bundle->data)
 			return false;
 
-		zstatus = LZ4_decompress_safe(bundle->zdata, (char*) bundle->data, bundle->zsize, bundle->size);
+		zstatus = LZ4_decompress_safe((const char*) bundle->zdata, (char*) bundle->data, bundle->zsize, bundle->size);
 
 		if (zstatus != bundle->size)
 			return false;
@@ -76,7 +76,7 @@ bool yarc_bundle_close(yarc_bundle_t* bundle)
 		}
 
 		free((void*) bundle->data);
-		bundle->data;
+		bundle->data = NULL;
 	}
 
 	return true;
