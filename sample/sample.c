@@ -9,7 +9,7 @@ YARC_EXTERN(sample, squirrel_jpg);
 #pragma warning(disable: 4996)
 #endif
 
-int main(int argc, char** argv)
+int sample_main(int argc, char** argv)
 {
 	FILE* fp;
 	int size = 0;
