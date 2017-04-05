@@ -15,7 +15,10 @@ endif()
 
 include_directories(include)
 
-add_subdirectory(app)
+if(NOT CMAKE_CROSSCOMPILING)
+	add_subdirectory(app)
+endif()
+
 add_subdirectory(libyarc)
 
 add_subdirectory(sample)

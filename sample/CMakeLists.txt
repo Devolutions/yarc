@@ -1,6 +1,11 @@
 
+set(RESOURCES
+	squirrel.jpg
+	colors.json
+	rfc4960.txt)
+
 yarc_bundle(NAME sample
-	RESOURCES squirrel.jpg colors.json rfc4960.txt
+	RESOURCES ${RESOURCES}
 	OUTPUT resources.c
 	VERBOSE COMPRESS)
 
