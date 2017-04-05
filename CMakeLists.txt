@@ -21,20 +21,15 @@ include_directories(include)
 if(NOT CMAKE_CROSSCOMPILING)
 	add_subdirectory(app)
 else()
-	string(COMPARE EQUAL "${CMAKE_SOURCE_DIR}" "${CMAKE_BINARY_DIR}" IN_SOURCE)
-	if(IN_SOURCE)
-		message(FATAL_ERROR "in-source builds are not supported for cross-compilation.")
-	endif()
 	set(YARC_HOST_PREFIX "yarc-host")
 	ExternalProject_Add(yarc-host
 		PREFIX "${YARC_HOST_PREFIX}"
 		DOWNLOAD_COMMAND ""
-		SOURCE_DIR "${CMAKE_SOURCE_DIR}"
-		CMAKE_ARGS -DYARC_API=OFF -DYARC_SAMPLE=OFF
+		SOURCE_DIR "${CMAKE_SOURCE_DIR}/app"
 		BINARY_DIR "${YARC_HOST_PREFIX}"
 		INSTALL_COMMAND "")
 	add_executable(yarc IMPORTED)
-	set_property(TARGET yarc PROPERTY IMPORTED_LOCATION "${CMAKE_BINARY_DIR}/${YARC_HOST_PREFIX}/app/yarc")
+	set_property(TARGET yarc PROPERTY IMPORTED_LOCATION "${CMAKE_BINARY_DIR}/${YARC_HOST_PREFIX}/yarc")
 endif()
 
 if(YARC_API)
