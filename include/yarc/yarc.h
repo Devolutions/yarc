@@ -21,6 +21,10 @@ extern yarc_bundle_t yarc_ ## _identifier ## _bundle;
 #define YARC_SIZE(_bundle, _identifier) \
 	yarc_ ## _bundle ## _ ## _identifier ## _size
 
+#define YARC_DATA_SIZE(_bundle, _identifier) \
+	yarc_ ## _bundle ## _ ## _identifier ## _data, \
+	yarc_ ## _bundle ## _ ## _identifier ## _size
+
 #ifdef __cplusplus
 extern "C" {
 #endif
