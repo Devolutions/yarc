@@ -96,8 +96,34 @@ int yarc_file_construct_names(yarc_file_t* yf)
 
 	while (*p)
 	{
-		if (*p == '.')
-			*p = '_';
+		switch (*p)
+		{
+			case '.':
+			case ',':
+			case '-':
+			case ' ':
+			case '$':
+			case '&':
+			case '*':
+			case '#':
+			case '/':
+			case '@':
+			case '(':
+			case ')':
+			case '[':
+			case ']':
+			case '<':
+			case '>':
+			case '?':
+			case '~':
+			case '!':
+			case '%':
+			case '^':
+			case '=':
+			case '\\':
+				*p = '_';
+				break;
+		}
 
 		p++;
 	}
