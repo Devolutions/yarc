@@ -30,20 +30,22 @@ extern "C" {
 #endif
 
 typedef struct {
-  const char* name;
-  const unsigned int* size;
-  const unsigned char** data;
-  const unsigned int offset;
+	const char* name;
+	const unsigned int* size;
+	const unsigned char** data;
+	const unsigned int offset;
 } yarc_resource_t;
 
 typedef struct {
-  const char* name;
-  const unsigned int size;
-  const unsigned char* data;
-  const unsigned int zsize;
-  const unsigned char* zdata;
-  const yarc_resource_t* resources;
+	const char* name;
+	const unsigned int size;
+	const unsigned char* data;
+	const unsigned int zsize;
+	const unsigned char* zdata;
+	const yarc_resource_t* resources;
 } yarc_bundle_t;
+
+#define YARC_MAGIC	0x43524159
 
 const unsigned char* yarc_bundle_find(yarc_bundle_t* bundle, const char* name, int* size);
 
