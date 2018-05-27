@@ -45,6 +45,7 @@ static bool yarc_static = false;
 static bool yarc_verbose = false;
 static bool yarc_compress = false;
 static bool yarc_block = false;
+static bool yarc_extract = false;
 
 #ifndef YARC_LZ4
 int LZ4_compress_HC(const char* src, char* dst, int srcSize, int dstCapacity, int compressionLevel) { return 0; }
@@ -254,6 +255,29 @@ int yarc_file_load(yarc_file_t* yf)
 	return 1;
 }
 
+bool yarc_file_save(const char* filename, uint8_t* data, size_t size)
+{
+	FILE* fp = NULL;
+	bool success = true;
+
+	if (!filename || !data)
+		return false;
+
+	fp = fopen(filename, "wb");
+
+	if (!fp)
+		return false;
+
+	if (fwrite(data, 1, size, fp) != size)
+	{
+		success = false;
+	}
+
+	fclose(fp);
+	return success;
+}
+
+
 int yarc_file_open(yarc_file_t* yf, bool write)
 {
 	if (write)
@@ -318,6 +342,48 @@ void yarc_file_close(yarc_file_t* yf)
 	}
 }
 
+int yarc_extract_block(const char* filename)
+{
+	int status;
+	uint8_t* data;
+	uint32_t size;
+	uint32_t index;
+	uint32_t count;
+	const char* name;
+	yarc_file_t file;
+	yarc_block_t* block;
+
+	memset(&file, 0, sizeof(yarc_file_t));
+	file.filename = (char*) filename;
+
+	status = yarc_file_load(&file);
+
+	if (status < 1)
+		return status;
+
+	block = yarc_block_open(file.data, file.size);
+
+	yarc_file_close(&file);
+
+	if (!block)
+		return -1;
+
+	printf("%s\n", yarc_block_name(block));
+
+	count = yarc_block_count(block);
+
+	for (index = 0; index < count; index++)
+	{
+		data = (uint8_t*) yarc_block_entry(block, index, &size, &name);
+		printf("%s (%d bytes)\n", name, size);
+		yarc_file_save(name, data, size);
+	}
+
+	yarc_block_close(block);
+
+	return 1;
+}
+
 void yarc_print_help()
 {
 	printf(
@@ -336,6 +402,7 @@ void yarc_print_help()
 		"    -s                use static keyword on resources\n"
 		"    -z                use bundle compression (lz4)\n"
 		"    -k                use block format\n"
+		"    -e                extract block\n"
 		"    -h                print help\n"
 		"    -v                print version (%s)\n"
 		"    -V                verbose mode\n"
@@ -439,6 +506,10 @@ int main(int argc, char** argv)
 					yarc_block = true;
 					break;
 
+				case 'e':
+					yarc_extract = true;
+					break;
+
 				case 'h':
 					yarc_print_help();
 					break;
@@ -476,6 +547,12 @@ int main(int argc, char** argv)
 			file = &files[index];
 			printf("%s%s", file->basename, index != (nfiles - 1) ? ", " : "\n");
 		}
+	}
+
+	if (yarc_extract && (nfiles > 0))
+	{
+		yarc_extract_block(files[0].filename);
+		return 1;
 	}
 
 	out = &files[nfiles];
