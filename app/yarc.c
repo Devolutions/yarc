@@ -10,6 +10,8 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#include <yarc/yarc.h>
+
 #ifndef _WIN32
 #define _strdup strdup
 #else
@@ -42,6 +44,8 @@ static char* yarc_version = "1.0.0";
 static bool yarc_static = false;
 static bool yarc_verbose = false;
 static bool yarc_compress = false;
+static bool yarc_block = false;
+static bool yarc_extract = false;
 
 #ifndef YARC_LZ4
 int LZ4_compress_HC(const char* src, char* dst, int srcSize, int dstCapacity, int compressionLevel) { return 0; }
@@ -203,6 +207,27 @@ int yarc_zdata_write(yarc_file_t* out, const uint8_t* zdata, size_t zsize, size_
 	return 1;
 }
 
+size_t yarc_string_size(const char* str)
+{
+	size_t len, pad, size;
+	len = str ? strlen(str) : 0;
+	size = (2 + len + 1);
+	pad = ((size + 3) & ~0x3) - size;
+	return (size + pad);
+}
+
+size_t yarc_string_write(uint8_t* ptr, const char* str)
+{
+	size_t len, pad, size;
+	len = str ? strlen(str) : 0;
+	size = (2 + len + 1);
+	pad = ((size + 3) & ~0x3) - size;
+	*((uint16_t*) &ptr[0]) = (uint16_t) len;
+	memcpy(&ptr[2], str, len + 1);
+	memset(&ptr[size], 0, pad);
+	return (size + pad);
+}
+
 int yarc_file_load(yarc_file_t* yf)
 {
 	yf->fp = fopen(yf->filename, "rb");
@@ -229,6 +254,29 @@ int yarc_file_load(yarc_file_t* yf)
 
 	return 1;
 }
+
+bool yarc_file_save(const char* filename, uint8_t* data, size_t size)
+{
+	FILE* fp = NULL;
+	bool success = true;
+
+	if (!filename || !data)
+		return false;
+
+	fp = fopen(filename, "wb");
+
+	if (!fp)
+		return false;
+
+	if (fwrite(data, 1, size, fp) != size)
+	{
+		success = false;
+	}
+
+	fclose(fp);
+	return success;
+}
+
 
 int yarc_file_open(yarc_file_t* yf, bool write)
 {
@@ -294,6 +342,48 @@ void yarc_file_close(yarc_file_t* yf)
 	}
 }
 
+int yarc_extract_block(const char* filename)
+{
+	int status;
+	uint8_t* data;
+	uint32_t size;
+	uint32_t index;
+	uint32_t count;
+	const char* name;
+	yarc_file_t file;
+	yarc_block_t* block;
+
+	memset(&file, 0, sizeof(yarc_file_t));
+	file.filename = (char*) filename;
+
+	status = yarc_file_load(&file);
+
+	if (status < 1)
+		return status;
+
+	block = yarc_block_open(file.data, file.size);
+
+	yarc_file_close(&file);
+
+	if (!block)
+		return -1;
+
+	printf("%s\n", yarc_block_name(block));
+
+	count = yarc_block_count(block);
+
+	for (index = 0; index < count; index++)
+	{
+		data = (uint8_t*) yarc_block_entry(block, index, &size, &name);
+		printf("%s (%d bytes)\n", name, size);
+		yarc_file_save(name, data, size);
+	}
+
+	yarc_block_close(block);
+
+	return 1;
+}
+
 void yarc_print_help()
 {
 	printf(
@@ -311,6 +401,8 @@ void yarc_print_help()
 		"    -u                use uppercase hex (default is lowercase)\n"
 		"    -s                use static keyword on resources\n"
 		"    -z                use bundle compression (lz4)\n"
+		"    -k                use block format\n"
+		"    -e                extract block\n"
 		"    -h                print help\n"
 		"    -v                print version (%s)\n"
 		"    -V                verbose mode\n"
@@ -410,6 +502,14 @@ int main(int argc, char** argv)
 					yarc_compress = true;
 					break;
 
+				case 'k':
+					yarc_block = true;
+					break;
+
+				case 'e':
+					yarc_extract = true;
+					break;
+
 				case 'h':
 					yarc_print_help();
 					break;
@@ -425,6 +525,9 @@ int main(int argc, char** argv)
 
 			continue;
 		}
+
+		if (yarc_block && !strcmp(yarc_output, "resources.c"))
+			yarc_output = "resources.yarc";
 
 		file = &files[nfiles++];
 		file->filename = _strdup(argv[index]);
@@ -444,6 +547,12 @@ int main(int argc, char** argv)
 			file = &files[index];
 			printf("%s%s", file->basename, index != (nfiles - 1) ? ", " : "\n");
 		}
+	}
+
+	if (yarc_extract && (nfiles > 0))
+	{
+		yarc_extract_block(files[0].filename);
+		return 1;
 	}
 
 	out = &files[nfiles];
@@ -493,7 +602,7 @@ int main(int argc, char** argv)
 			memcpy(&data[file->offset], file->data, file->size + yarc_padding);
 		}
 
-		zstatus = LZ4_compress_HC((const char*) data, (char*) zdata, size, zsize, 12);
+		zstatus = LZ4_compress_HC((const char*) data, (char*) zdata, (int) size, (int) zsize, 12);
 
 		if (zstatus < 1)
 		{
@@ -516,75 +625,140 @@ int main(int argc, char** argv)
 
 	/* start generating resource bundle file */
 
-	fprintf(out->fp, "\n");
-
-	for (index = 0; index < nfiles; index++)
+	if (yarc_block)
 	{
-		file = &files[index];
+		uint8_t* ptr;
+		size_t blockSize;
+		uint8_t* blockData;
 
-		status = yarc_file_write(out, file);
+		blockSize = 24 + yarc_string_size(yarc_bundle);
 
-		if (status < 1)
+		for (index = 0; index < nfiles; index++)
+		{
+			file = &files[index];
+			blockSize += 8 + yarc_string_size(file->basename);
+		}
+
+		blockSize = (blockSize + 15) & ~0xF;
+
+		blockData = (uint8_t*) malloc(blockSize);
+
+		if (!blockData)
 			return 1;
-	}
 
-	if (yarc_compress)
-	{
-		status = yarc_zdata_write(out, zdata, zsize, size);
+		ptr = blockData;
 
-		if (status < 1)
+		*((uint32_t*) &ptr[0]) = YARC_MAGIC;		/* magic, 0x43524159, "YARC" */
+		*((uint32_t*) &ptr[4]) = (uint32_t) blockSize;	/* payload data offset */
+		*((uint32_t*) &ptr[8]) = (uint32_t) size;	/* uncompressed data size */
+		*((uint32_t*) &ptr[12]) = (uint32_t) zsize;	/* compressed data size */
+		*((uint32_t*) &ptr[16]) = (uint32_t) nfiles;	/* number of resources */
+		*((uint32_t*) &ptr[20]) = (uint32_t) 0;		/* flags (reserved) */
+		ptr += 24;
+
+		ptr += yarc_string_write(ptr, yarc_bundle);
+
+		for (index = 0; index < nfiles; index++)
+		{
+			file = &files[index];
+
+			*((uint32_t*) &ptr[0]) = (uint32_t) file->offset;
+			*((uint32_t*) &ptr[4]) = (uint32_t) file->size;
+			ptr += 8;
+
+			ptr += yarc_string_write(ptr, file->basename);
+		}
+
+		memset(ptr, 0, blockSize - (ptr - blockData));
+
+		if (fwrite(blockData, 1, blockSize, out->fp) != blockSize)
 			return 1;
-	}
 
-	fprintf(out->fp,
-		"typedef struct {\n"
-		"  const char* name;\n"
-		"  const unsigned int* size;\n"
-		"  const unsigned char** data;\n"
-		"  const unsigned int offset;\n"
-		"} %s_resource_t;\n\n", yarc_prefix);
+		if (yarc_compress)
+		{
+			if (fwrite(zdata, 1, zsize, out->fp) != zsize)
+				return 1;
+		}
+		else
+		{
+			if (fwrite(data, 1, size, out->fp) != size)
+				return 1;
+		}
 
-	fprintf(out->fp,
-		"typedef struct {\n"
-		"  const char* name;\n"
-		"  const unsigned int size;\n"
-		"  const unsigned char* data;\n"
-		"  const unsigned int zsize;\n"
-		"  const unsigned char* zdata;\n"
-		"  const %s_resource_t* resources;\n"
-		"} %s_bundle_t;\n\n", yarc_prefix, yarc_prefix);
-
-	fprintf(out->fp, "%sconst %s_resource_t %s_%s_resources[] = {\n",
-		yarc_static ? "static " : "",
-		yarc_prefix, yarc_prefix, yarc_bundle);
-
-	for (index = 0; index < nfiles; index++)
-	{
-		file = &files[index];
-		fprintf(out->fp, "  { \"%s\", &%s_size, &%s_data, %d },\n",
-			file->basename, file->identifier, file->identifier, (int) file->offset);
-	}
-
-	fprintf(out->fp, "  { \"\", 0, 0 }\n};\n");
-	fprintf(out->fp, "\n");
-
-	fprintf(out->fp, "%s%s_bundle_t %s_%s_bundle = {\n",
-		yarc_static ? "static " : "",
-		yarc_prefix, yarc_prefix, yarc_bundle);
-
-	if (yarc_compress)
-	{
-		fprintf(out->fp, "  \"%s\", %d, 0, %d, %s_%s_zdata, %s_%s_resources\n",
-			yarc_bundle, (int) size, (int) zsize, yarc_prefix, yarc_bundle, yarc_prefix, yarc_bundle);
+		free(blockData);
 	}
 	else
 	{
-		fprintf(out->fp, "  \"%s\", %d, 0, %d, 0, %s_%s_resources\n",
-			yarc_bundle, (int) size, (int) zsize, yarc_prefix, yarc_bundle);
-	}
+		fprintf(out->fp, "\n");
 
-	fprintf(out->fp, "};\n");
-	fprintf(out->fp, "\n");
+		for (index = 0; index < nfiles; index++)
+		{
+			file = &files[index];
+
+			status = yarc_file_write(out, file);
+
+			if (status < 1)
+				return 1;
+		}
+
+		if (yarc_compress)
+		{
+			status = yarc_zdata_write(out, zdata, zsize, size);
+
+			if (status < 1)
+				return 1;
+		}
+
+		fprintf(out->fp,
+			"typedef struct {\n"
+			"  const char* name;\n"
+			"  const unsigned int* size;\n"
+			"  const unsigned char** data;\n"
+			"  const unsigned int offset;\n"
+			"} %s_resource_t;\n\n", yarc_prefix);
+
+		fprintf(out->fp,
+			"typedef struct {\n"
+			"  const char* name;\n"
+			"  const unsigned int size;\n"
+			"  const unsigned char* data;\n"
+			"  const unsigned int zsize;\n"
+			"  const unsigned char* zdata;\n"
+			"  const %s_resource_t* resources;\n"
+			"} %s_bundle_t;\n\n", yarc_prefix, yarc_prefix);
+
+		fprintf(out->fp, "%sconst %s_resource_t %s_%s_resources[] = {\n",
+			yarc_static ? "static " : "",
+			yarc_prefix, yarc_prefix, yarc_bundle);
+
+		for (index = 0; index < nfiles; index++)
+		{
+			file = &files[index];
+			fprintf(out->fp, "  { \"%s\", &%s_size, &%s_data, %d },\n",
+				file->basename, file->identifier, file->identifier, (int) file->offset);
+		}
+
+		fprintf(out->fp, "  { \"\", 0, 0 }\n};\n");
+		fprintf(out->fp, "\n");
+
+		fprintf(out->fp, "%s%s_bundle_t %s_%s_bundle = {\n",
+			yarc_static ? "static " : "",
+			yarc_prefix, yarc_prefix, yarc_bundle);
+
+		if (yarc_compress)
+		{
+			fprintf(out->fp, "  \"%s\", %d, 0, %d, %s_%s_zdata, %s_%s_resources\n",
+				yarc_bundle, (int) size, (int) zsize, yarc_prefix, yarc_bundle, yarc_prefix, yarc_bundle);
+		}
+		else
+		{
+			fprintf(out->fp, "  \"%s\", %d, 0, %d, 0, %s_%s_resources\n",
+				yarc_bundle, (int) size, (int) zsize, yarc_prefix, yarc_bundle);
+		}
+
+		fprintf(out->fp, "};\n");
+		fprintf(out->fp, "\n");
+	}
 
 	yarc_file_close(out);
 	free(files);

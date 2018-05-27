@@ -7,6 +7,8 @@ if(${PROJECT_NAME} STREQUAL "YARC")
 		target_link_libraries(yarc yarc-lz4-hc)
 	endif()
 
+	target_link_libraries(yarc yarc-api)
+
 else()
 	cmake_minimum_required(VERSION 3.0)
 
@@ -19,8 +21,10 @@ else()
 		set(YARC_EXTRA_SOURCES
 			../external/lz4/lz4.c
 			../external/lz4/lz4hc.c)
-	endif()	
+	endif()
 
 	add_executable(yarc yarc.c ${YARC_EXTRA_SOURCES})
+
+	target_link_libraries(yarc yarc-api)
 endif()
 

@@ -30,25 +30,38 @@ extern "C" {
 #endif
 
 typedef struct {
-  const char* name;
-  const unsigned int* size;
-  const unsigned char** data;
-  const unsigned int offset;
+	const char* name;
+	const unsigned int* size;
+	const unsigned char** data;
+	const unsigned int offset;
 } yarc_resource_t;
 
 typedef struct {
-  const char* name;
-  const unsigned int size;
-  const unsigned char* data;
-  const unsigned int zsize;
-  const unsigned char* zdata;
-  const yarc_resource_t* resources;
+	const char* name;
+	const unsigned int size;
+	const unsigned char* data;
+	const unsigned int zsize;
+	const unsigned char* zdata;
+	const yarc_resource_t* resources;
 } yarc_bundle_t;
+
+#define YARC_MAGIC	0x43524159
+
+typedef struct yarc_block_s yarc_block_t;
 
 const unsigned char* yarc_bundle_find(yarc_bundle_t* bundle, const char* name, int* size);
 
 bool yarc_bundle_open(yarc_bundle_t* bundle);
 bool yarc_bundle_close(yarc_bundle_t* bundle);
+
+const char* yarc_block_name(yarc_block_t* block);
+uint32_t yarc_block_count(yarc_block_t* block);
+
+const uint8_t* yarc_block_entry(yarc_block_t* block, uint32_t index, uint32_t* size, const char** name);
+const uint8_t* yarc_block_find(yarc_block_t* block, const char* name, uint32_t* size);
+
+yarc_block_t* yarc_block_open(const uint8_t* data, size_t size);
+void yarc_block_close(yarc_block_t* block);
 
 #ifdef __cplusplus
 }
