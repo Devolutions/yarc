@@ -675,7 +675,7 @@ int main(int argc, char** argv)
 			length = strlen(line);
 
 			if (line[length - 1] == '\r')
-				line[length - 1] = ' ';
+				line[length - 1] = '\0';
 
 			file = &files[nfiles++];
 			file->filename = _strdup(line);
