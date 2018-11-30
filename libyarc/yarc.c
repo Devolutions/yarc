@@ -7,6 +7,10 @@ extern int LZ4_decompress_safe(const char* source, char* dest, int compressedSiz
 int LZ4_decompress_safe(const char* source, char* dest, int compressedSize, int maxDecompressedSize) { return 0; }
 #endif
 
+#ifndef _WIN32
+#define _strdup strdup
+#endif
+
 const unsigned char* yarc_bundle_find(yarc_bundle_t* bundle, const char* name, int* size)
 {
 	const unsigned char* data;
