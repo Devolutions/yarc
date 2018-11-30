@@ -36,6 +36,7 @@ typedef struct
 
 static int yarc_width = 16;
 static int yarc_padding = 2;
+static char* yarc_list = NULL;
 static bool yarc_upper = false;
 static char* yarc_prefix = "yarc";
 static char* yarc_bundle = "default";
@@ -342,6 +343,103 @@ void yarc_file_close(yarc_file_t* yf)
 	}
 }
 
+char* yarc_string_load(const char* filename)
+{
+	yarc_file_t list;
+
+	memset(&list, 0, sizeof(yarc_file_t));
+	list.filename = yarc_list;
+	yarc_file_load(&list);
+	list.filename = NULL;
+	yarc_file_close(&list);
+
+	return (char*) list.data;
+}
+
+int yarc_split_by_char(const char* str, const char sep, char*** plines)
+{
+	int index = 0;
+	int count = 0;
+	char* p;
+	char* end;
+	int asize;
+	char* line;
+	char** lines;
+	char* buffer;
+	size_t length;
+
+	if (!str || !plines)
+		return -1;
+
+	length = strlen(str);
+
+	p = (char*) str;
+	end = (char*) &str[length - 1];
+
+	while (p < end)
+	{
+		if (p[0] == sep)
+		{
+			count++;
+			p += 1;
+		}
+		else
+		{
+			p++;
+		}
+	}
+
+	count++;
+
+	asize = (count + 1) * sizeof(char*);
+	buffer = malloc(asize + length + 1);
+
+	if (!buffer)
+		return -1;
+
+	lines = (char**) buffer;
+	lines[count] = NULL;
+	p = &buffer[asize];
+	p[length] = '\0';
+
+	memcpy(p, str, length);
+	end = &p[length - 1];
+	line = p;
+
+	while (p < end)
+	{
+		if (p[0] == sep)
+		{
+			p[0] = '\0';
+			p += 1;
+			lines[index++] = line;
+			line = p;
+		}
+		else
+		{
+			p++;
+		}
+	}
+
+	lines[index++] = line;
+	*plines = lines;
+
+	if (line)
+	{
+		/* quick hack to strip separator from last line */
+
+		length = strlen(line);
+
+		if (length > 1)
+		{
+			if (line[length - 1] == sep)
+				line[length - 1] = '\0';
+		}
+	}
+
+	return count;
+}
+
 int yarc_extract_block(const char* filename)
 {
 	int status;
@@ -394,6 +492,7 @@ void yarc_print_help()
 		"\n"
 		"Options:\n"
 		"    -o <output file>  output file (default is \"resources.c\")\n"
+		"    -l <input list>   input list file (one file per line)\n"
 		"    -p <prefix>       name prefix (default is \"yarc\")\n"
 		"    -b <bundle>       bundle name (default is \"default\")\n"
 		"    -w <width>        hex dump width (default is 16)\n"
@@ -454,6 +553,14 @@ int main(int argc, char** argv)
 					if ((index + 1) < argc)
 					{
 						yarc_output = argv[index + 1];
+						index++;
+					}
+					break;
+
+				case 'l':
+					if ((index + 1) < argc)
+					{
+						yarc_list = argv[index + 1];
 						index++;
 					}
 					break;
@@ -529,9 +636,53 @@ int main(int argc, char** argv)
 		if (yarc_block && !strcmp(yarc_output, "resources.c"))
 			yarc_output = "resources.yarc";
 
-		file = &files[nfiles++];
-		file->filename = _strdup(argv[index]);
-		yarc_file_construct_names(file);
+		if (!yarc_list)
+		{
+			file = &files[nfiles++];
+			file->filename = _strdup(argv[index]);
+			yarc_file_construct_names(file);
+		}
+	}
+
+	if (yarc_list)
+	{
+		int index;
+		int count;
+		int length;
+		char* input;
+		char* line = NULL;
+		char** lines = NULL;
+
+		input = yarc_string_load(yarc_list);
+
+		if (!input)
+		{
+			fprintf(stderr, "could not load input list file: %s\n", yarc_list);
+			return 1;
+		}
+
+		count = yarc_split_by_char(input, '\n', &lines);
+		free(input);
+
+		nfiles = 0;
+		free(files);
+
+		files = (yarc_file_t*) calloc(count + 1, sizeof(yarc_file_t));
+
+		for (index = 0; index < count; index++)
+		{
+			line = lines[index];
+			length = strlen(line);
+
+			if (line[length - 1] == '\r')
+				line[length - 1] = ' ';
+
+			file = &files[nfiles++];
+			file->filename = _strdup(line);
+			yarc_file_construct_names(file);
+		}
+
+		free(lines);
 	}
 
 #ifndef YARC_LZ4
