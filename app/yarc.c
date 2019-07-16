@@ -889,7 +889,7 @@ int main(int argc, char** argv)
 				file->basename, file->identifier, file->identifier, (int) file->offset);
 		}
 
-		fprintf(out->fp, "  { \"\", 0, 0 }\n};\n");
+		fprintf(out->fp, "  { \"\", 0, 0, 0 }\n};\n");
 		fprintf(out->fp, "\n");
 
 		fprintf(out->fp, "%s%s_bundle_t %s_%s_bundle = {\n",
