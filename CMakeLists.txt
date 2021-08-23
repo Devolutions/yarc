@@ -7,7 +7,7 @@ include(cmake/YarcBundle.cmake)
 
 option(YARC_API "yarc api library" ON)
 option(YARC_LZ4 "yarc lz4 compression" ON)
-option(YARC_SAMPLE "yarc sample project" ON)
+option(YARC_SAMPLE "yarc sample project" OFF)
 
 include_directories(external)
 add_subdirectory(external)
@@ -18,19 +18,7 @@ endif()
 
 include_directories(include)
 
-if(NOT CMAKE_CROSSCOMPILING)
-	add_subdirectory(app)
-else()
-	set(YARC_HOST_PREFIX "yarc-host")
-	ExternalProject_Add(yarc-host
-		PREFIX "${YARC_HOST_PREFIX}"
-		DOWNLOAD_COMMAND ""
-		SOURCE_DIR "${CMAKE_SOURCE_DIR}/app"
-		BINARY_DIR "${YARC_HOST_PREFIX}"
-		INSTALL_COMMAND "")
-	add_executable(yarc IMPORTED)
-	set_property(TARGET yarc PROPERTY IMPORTED_LOCATION "${CMAKE_BINARY_DIR}/${YARC_HOST_PREFIX}/yarc")
-endif()
+add_subdirectory(app)
 
 if(YARC_API)
 	add_subdirectory(libyarc)
@@ -39,4 +27,3 @@ endif()
 if(YARC_SAMPLE)
 	add_subdirectory(sample)
 endif()
-
